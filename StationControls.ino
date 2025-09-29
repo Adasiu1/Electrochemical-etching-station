@@ -1,7 +1,7 @@
 #include <EEPROM.h>
 #include <math.h>
 
-// ================== DRV8825 / PWM piny ==================
+// DRV8825 / PWM piny 
 const int stepPin    = 12; // STEP
 const int dirPin     = 13; // DIR
 const int rst_slpPin = 11; // RESET/SLEEP (aktywny HIGH)
@@ -10,12 +10,12 @@ const int pwmPin     = 6;  // wyjście PWM do regulacji prądu
 int pwmValue         = 0;  // setpoint: 0..32 (mA)
 const int PWM_LIMIT  = 32; // maks. poziom prądu w mA
 
-// ================== Nextion: identyfikatory stron ==================
+// Nextion: identyfikatory stron 
 const byte MENU_PAGE_ID   = 0; // menu
 const byte HEIGHT_PAGE_ID = 1; // wysokość
 const byte PWM_PAGE_ID    = 2; // prąd (PWM)
 
-// ================== Silnik krokowy: dwa biegi ==================
+// Silnik krokowy: dwa biegi 
 const int SPEED_SLOW_US = 1328;
 const int SPEED_FAST_US = 878;
 
@@ -28,26 +28,26 @@ bool fastMode           = false;
 unsigned long lastTapTime   = 0;
 unsigned long pressStartMs  = 0;
 
-// ================== Auto-sleep sterownika ==================
+// Auto-sleep sterownika 
 unsigned long lastMotorActivity = 0;
 const unsigned long SLEEP_DELAY_MS = 5000;
 bool driverSleeping = false;
 
-// ================== EEPROM ==================
+// EEPROM 
 const int  EE_MAGIC_ADDR = 0;
 const int  EE_PWM_ADDR   = 1;
 const byte EE_MAGIC      = 0xA5;
 uint8_t    savedPWMValue = 0;
 
-// ================== Maszyna stanów ==================
+// Maszyna stanów 
 enum PageState { ST_MENU, ST_PWM, ST_HEIGHT };
 PageState currentState = ST_MENU;
 
-// ================== Polling strony Nextion ==================
+// Polling strony Nextion 
 const unsigned long PAGE_POLL_MS = 150;
 unsigned long lastPagePoll = 0;
 
-// ================== AMPEROMIERZ: pomiar na A3 ==================
+// AMPEROMIERZ: pomiar na A3 
 // RCURRENT (pad nie-GND) -> 1kΩ -> A3; przy A3 kondensator 10µF do GND.
 const byte  I_SENSE_PIN        = A3;      // wejście ADC
 const float R_SHUNT_OHM        = 56.0f;   // RCURRENT
@@ -57,16 +57,16 @@ unsigned long lastSenseMs      = 0;
 float ema_A                    = 0.0f;    // filtr EMA
 const float EMA_ALPHA          = 0.25f;   // 0..1 (większe = szybsza reakcja)
 
-// ---- Kalibracja wskazania A3 (z Twoich danych: multimetr vs A3) ----
+// Kalibracja wskazania A3 (z Twoich danych: multimetr vs A3) 
 const float I_SCALE_A  = 0.996068f;   // skalowanie
 const float I_OFFSET_A = 0.0000969f;  // [A] = 0.0969 mA
 
-// ================== Kalibracja sterowania (setpoint -> PWM) ==================
+// Kalibracja sterowania (setpoint -> PWM) 
 // Dopasowanie I = K*w + C  =>  w(s) = (s - C) / K   (Twoje dane 1..32 mA, OLS)
 const float CAL_K_mA_per_pwm = 0.348357f;   // [mA / PWM]
 const float CAL_C_mA         = 0.157477f;   // [mA]
 
-// ================== Narzędzia Nextion ==================
+// Narzędzia Nextion
 void nextionEnd(){ Serial.write(0xFF); Serial.write(0xFF); Serial.write(0xFF); } // terminator
 void nextionCmd(const char* cmd){ Serial.print(cmd); nextionEnd(); }
 
@@ -78,7 +78,7 @@ void updateCurrentText(int pwmVal){
   nextionEnd();
 }
 
-// --- format mA z przecinkiem (PL), jedna cyfra po przecinku ---
+// format mA z przecinkiem (PL), jedna cyfra po przecinku 
 String fmt_mA(float mA){
   if (mA < 0) mA = 0;            // kosmetyka: wartości ujemne wyświetlaj jako 0
   String s = String(mA, 1);      // np. 19,8 mA
@@ -87,7 +87,7 @@ String fmt_mA(float mA){
   return s;
 }
 
-// --- [NOWE] Sprytowe zerowanie wyświetlania (niezależne od nastawy) ---
+// Zerowanie wyświetlania (niezależne od nastawy) 
 const float ZERO_CLAMP_MA     = 0.15f;     // próg wejścia w zero (mA)
 const float ZERO_RELEASE_MA   = 0.25f;     // próg wyjścia z zera (mA) – histereza
 const unsigned long ZERO_HOLD_MS = 600;    // czas stabilizacji, by zakotwiczyć (ms)
@@ -139,7 +139,7 @@ float readCurrent_A_raw(){
   return (V / R_SHUNT_OHM);                              // I = V/R [A]
 }
 
-// ================== Mapowanie setpoint -> analogWrite() (skalibrowane) ==================
+// Mapowanie setpoint -> analogWrite() (skalibrowane) 
 int mapPWMToAnalog(int s_mA){
   float w = ((float)s_mA - CAL_C_mA) / CAL_K_mA_per_pwm; // ≈ 2.870615*s - 0.452056
   w = constrain(w, 0.0f, 255.0f);
@@ -154,7 +154,7 @@ void applyPWMOutput(){
   }
 }
 
-// ================== EEPROM ==================
+// EEPROM 
 void eepromInitAndLoad(){
   byte magic = EEPROM.read(EE_MAGIC_ADDR);
   if(magic != EE_MAGIC){
@@ -173,7 +173,7 @@ void eepromSavePWM(uint8_t value){
   savedPWMValue = value;
 }
 
-// ================== Wejście/wyjście stanu ==================
+// Wejście/wyjście stanu 
 void onEnterState(PageState st){
   switch(st){
     case ST_MENU:   break;
@@ -211,7 +211,7 @@ PageState pageIdToState(byte pageID){
   return ST_MENU;
 }
 
-// ================== setup ==================
+// setup 
 void setup(){
   Serial.begin(9600);           // Nextion na UART0
   // analogReference(DEFAULT);  // domyślnie ≈5 V (UNO)
@@ -237,7 +237,7 @@ void setup(){
   lastSenseMs       = millis();
 }
 
-// ================== Obsługa Nextion ==================
+// Obsługa Nextion 
 void handleTouchEvent(byte pageID, byte compID, byte event){
   nextionCmd("sendme");
 
@@ -297,7 +297,6 @@ bool readNextionFrame(){
   return false;
 }
 
-// ================== loop ==================
 void loop(){
   readNextionFrame();
 
@@ -336,7 +335,7 @@ void loop(){
   // wyjście PWM
   applyPWMOutput();
 
-  // ===== Amperomierz: publikacja w mA na stronie PWM =====
+  // Amperomierz: publikacja w mA na stronie PWM 
   if(currentState == ST_PWM && (now - lastSenseMs >= SENSE_PERIOD_MS)){
     float A_now = readCurrent_A_raw();
     A_now = A_now * I_SCALE_A + I_OFFSET_A;                 // korekcja pomiaru
